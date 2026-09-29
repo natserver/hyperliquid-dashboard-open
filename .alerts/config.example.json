@@ -1,0 +1,95 @@
+{
+  "_说明": [
+    "把这个文件复制成同目录下的 config.json 再改。config.json 不会被任何 HTTP 接口回显，",
+    "但也因此 --- 它里面的 webhook token 等于密钥，不要提交到任何仓库（.gitignore 已包含）。",
+    "",
+    "channels 留空或删掉 → 只在控制台输出，不推送。",
+    "配好之后用 node tools/watch.js --test-push 验证通道是否打通。",
+    "安全约束：只允许 https，且拒绝内网/回环/云元数据地址（防止本服务被当成内网跳板）。",
+    "确有内网自建推送服务时，在该通道上加 \"allowPrivateTargets\": true。"
+  ],
+
+  "enabled": true,
+
+  "_priming说明": "首次运行（没有历史状态）时的推送策略。critical=只推严重级（默认，避免启动瞬间刷屏）/ all=全推 / silent=不推只建基线",
+  "priming": "critical",
+
+  "_cooldown说明": "同一告警在严重度不变时的重复提醒间隔（毫秒）。默认 1800000 = 30 分钟。严重度升级不受它限制。",
+  "cooldownMs": 1800000,
+
+  "_notifyRecovery说明": "条件解除时是否也推一条恢复通知",
+  "notifyRecovery": true,
+
+  "channels": [
+    {
+      "_说明": "企业微信群机器人：群设置 → 群机器人 → 添加 → 复制 Webhook 地址。最省事的手机端推送。",
+      "type": "wecom",
+      "url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=把这里换成你的key"
+    },
+    {
+      "_说明": [
+        "Telegram（电报）Bot：在 Telegram 里找 @BotFather → /newbot 拿 token（形如 123456789:AAH...）；",
+        "再找 @userinfobot 或给你的 bot 发一条消息后访问 /getUpdates 拿 chatId（群/频道是 -100 开头的负数）。",
+        "url 写到 /bot<token> 就行，*/sendMessage 会自动补上。",
+        "若本机直连不通，加一行 \"proxy\": \"http://127.0.0.1:7890\"（用 node tools/tunnel-check.js 先诊断）。"
+      ],
+      "type": "telegram",
+      "url": "https://api.telegram.org/bot把这里换成你的token",
+      "chatId": "把这里换成你的chatId"
+    },
+    {
+      "_说明": "Bark（iOS）：App 里复制的那串地址，通常是 https://api.day.app/你的key",
+      "type": "bark",
+      "url": "https://api.day.app/把这里换成你的key"
+    },
+    {
+      "_说明": "通用 webhook：会 POST { title, text, markdown, summary, events[] }，自己接什么都行",
+      "type": "generic",
+      "url": "https://your-endpoint.example.com/hook"
+    }
+  ],
+
+  "_阈值说明": [
+    "下面是覆盖项，只写想改的字段即可，其余走内置默认值（见 src/alerts.js 的 ALERT_DEFAULTS）。",
+    "单位约定：ratio 一律是小数（0.15 = 15%），bps 一律是万分比整数（50 = 0.5%）。",
+    "clear 是「恢复线」，必须比 warn/critical 更宽松 —— 它的作用是迟滞，防止在阈值附近抖动时刷屏。"
+  ],
+
+  "risk": {
+    "_liq": "距清算价的比例距离。小于 warn 触发警告，小于 critical 触发严重。clear 是恢复线。",
+    "liq": { "warn": 0.15, "critical": 0.06, "clear": 0.2 },
+
+    "_stopApproach": "标记价距推荐止损的比例距离",
+    "stopApproach": { "warn": 0.02, "critical": 0.005, "clear": 0.035 },
+
+    "_stopBreached": "已击穿止损后，要退回止损的安全侧多少比例才算恢复（sticky，防止收回一点就降级）",
+    "stopBreached": { "clear": 0.005 },
+
+    "_trendExit": "4H 收盘越过中轨后，要退回多少比例才算恢复。只看已收盘的 K 线，盘中插针不算。",
+    "trendExit": { "clear": 0.005 },
+
+    "_overBudget": "止损触发亏损占权益比。warn 线默认对齐策略的 5% 单笔风险预算。",
+    "overBudget": { "warn": 0.05, "critical": 0.08, "clear": 0.04 },
+
+    "_leverageCap": "实际杠杆 ÷ 配置上限的倍数",
+    "leverageCap": { "warn": 1.0, "critical": 1.5, "clear": 0.9 }
+  },
+
+  "funding": {
+    "_adverseApr": "不利方向的年化资金费率（0.25 = 25%/年）。只算对我方不利的那一侧 —— 反向收资金费是补贴，不告警。",
+    "adverseApr": { "warn": 0.25, "critical": 0.75, "clear": 0.18 },
+
+    "_vsBaseline": "上者 ÷ 该标的自身 30 天基准。这是「异常」的核心判据 —— 没有它，绝对阈值对小币种必然失准。",
+    "vsBaseline": { "warn": 2.5, "critical": 4, "clear": 1.8 },
+
+    "_costPctEquity": "年化不利资金费占权益比。用来抓「费率不算高但仓位太大所以很贵」。",
+    "costPctEquity": { "warn": 0.03, "critical": 0.1, "clear": 0.015 }
+  },
+
+  "roll": {
+    "_stepHysteresisBps": "滚仓阶梯触发的迟滞宽度（bps）。价格在触发价附近来回摆时，靠它避免反复报同一档。",
+    "stepHysteresisBps": 10,
+    "_readyClearRatio": "浮盈找回撤时的恢复系数：恢复线 = 触发阈值 × 该系数",
+    "readyClearRatio": 0.8
+  }
+}

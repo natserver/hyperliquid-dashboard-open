@@ -1,0 +1,8 @@
+# 行尾规则：这台机器是 Windows，git 默认会把文本文件检出成 CRLF。
+# 部署脚本会被 `sh` 直接执行（busybox ash），CRLF 会让第一行 shebang 就报错，
+# 所以这几类文件必须钉死成 LF。
+*.sh    text eol=lf
+Dockerfile text eol=lf
+
+# Windows 计划任务用的批处理反过来 —— 必须是 CRLF 才能被 cmd.exe 认。
+*.cmd   text eol=crlf

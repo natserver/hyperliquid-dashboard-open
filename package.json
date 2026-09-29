@@ -1,0 +1,26 @@
+{
+  "name": "bithuang-hyperliquid-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "比特皇策略 · Hyperliquid 只读可视化看板（零依赖，无密钥）",
+  "scripts": {
+    "start": "node server.js",
+    "probe": "node tools/probe.js",
+    "shape": "node tools/shape.js",
+    "watch": "node tools/watch.js",
+    "macro:daily": "node --no-warnings tools/macro-daily.js",
+    "macro:view": "node --no-warnings tools/macro-daily.js --view",
+    "macro:check": "node --no-warnings tools/macro-daily.js --dry-run",
+    "test": "node tools/alert-check.js && node tools/selftest.js && node --no-warnings tools/macro-store-check.js && node tools/contract-check.js && node tools/render-check.js && node tools/render-dom-smoke.js && node tools/regime-check.js && node --no-warnings tools/macro-render-smoke.mjs",
+    "test:alerts": "node tools/alert-check.js",
+    "test:render": "node tools/render-check.js && node tools/render-dom-smoke.js",
+    "test:regime": "node tools/regime-check.js",
+    "test:regime:backtest": "node tools/regime-check.js --backtest",
+    "test:store": "node --no-warnings tools/macro-store-check.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {}
+}

@@ -1,0 +1,39 @@
+# 比特皇看板 · docker compose 版（可选）
+#
+# OpenWrt 上不一定有 compose（有的只有 docker 本体），所以 install.sh 走的是
+# 纯 `docker build` + `docker run`。这份文件是给「装了 compose 的机器」用的，
+# 两条路跑出来的东西完全一样，改哪边都不会让另一边悄悄失效。
+#
+#   HL_USER=0x... docker compose up -d --build
+
+services:
+  dashboard:
+    build: .
+    image: bithuang-dashboard:latest
+    container_name: bithuang-dashboard
+    restart: unless-stopped
+    ports:
+      - "${HL_PORT:-8787}:8787"
+    environment:
+      HOST: 0.0.0.0
+      PORT: "8787"
+      # 预警守护进程默认关：Windows 上那份还在跑，两边都开会把同一件事推两遍。
+      HL_WATCH: "${HL_WATCH:-0}"
+      HL_USER: "${HL_USER:-}"
+      HL_NETWORK: "${HL_NETWORK:-mainnet}"
+      HL_COIN: "${HL_COIN:-BTC}"
+      HL_INTERVAL: "${HL_INTERVAL:-60}"
+      # 每日采集循环默认开：它是唯一「有没有人打开页面都必须跑」的活。
+      # 一轮跑两个脚本：macro-daily（M1~M6 读数）+ events-daily（黑天鹅/减半/美联储）。
+      HL_MACRO: "${HL_MACRO:-1}"
+      HL_MACRO_INTERVAL: "${HL_MACRO_INTERVAL:-86400}"
+      # 每日全量落档默认开：把 Hyperliquid 侧全部参数抓一份存档
+      # （K线/持仓/点位/三阶段/预警），顺带给服务端缓存预热。
+      HL_SNAPSHOT: "${HL_SNAPSHOT:-1}"
+      # 每日总结默认开：北京时间到点把方向/读数/事件/持仓/预警压成一条推送。
+      HL_BRIEF: "${HL_BRIEF:-1}"
+      HL_BRIEF_AT: "${HL_BRIEF_AT:-18:00}"
+    volumes:
+      # 账本与推送配置挂在宿主机，换镜像不会丢。
+      - ./.data:/app/.data
+      - ./.alerts:/app/.alerts

@@ -1,0 +1,165 @@
+{
+  "version": 1,
+  "updatedAt": "2026-09-22",
+  "note": [
+    "这是系统一（宏观方向层）的第三路输入：大事件与流动性。",
+    "每条事件的权重会按半衰期衰减：有效权重 = weight × 0.5 ^ (距今天数 / halfLifeDays)。",
+    "",
+    "字段：",
+    "  id            唯一标识，改了就当成一条新事件",
+    "  date          UTC 日期 YYYY-MM-DD。写未来日期 = 日程（pending），不计入权重，只在界面上列出来",
+    "  kind          取值见顶层 kindVocabulary。目前只有 kind=shock 会改变行为，其余只是归类标签",
+    "  weight        正数偏多、负数偏空。事件层理由要求 |weight| ≥ 0.5；A7 事件反应层要求 ≥ 0.3",
+    "  halfLifeDays  半衰期。市场是逐渐消化一件事的，不是到某天突然失效",
+    "  note          人话解释，会直接显示在界面原因列表里",
+    "",
+    "** shock 是特殊的 **：kind=shock 且有效权重 ≤ -1 时，方向层会被强制 NEUTRAL（冻结新开仓），",
+    "持续该事件发生后 shockWindowDays 天。这是唯一的「一票否决」通道。",
+    "",
+    "── 本表同时是「N 项待人工确认」那 6 条判据的唯一数据入口 ——",
+    "界面结论卡上的「6 项待人工确认」，指向 src/regime-criteria.js 里 implemented:false 的",
+    "stage=1 条目。这 6 条没有自动数据源，只能录在这里，kind 对应关系：",
+    "  media-extreme          媒体情绪极端      → kind=sentiment",
+    "  etf-netflow            ETF 连续净流入     → kind=etf",
+    "  onchain-activity       链上活跃地址       → kind=onchain",
+    "  liquidity-macro        DXY / 美联储       → kind=liquidity",
+    "  institutional-holding  机构持仓占比       → kind=institution",
+    "  regulation-policy      监管政策反复       → kind=regulatory",
+    "⚠️ 这 6 条**都不是** shock，所以它们不否决方向。它们只走两条路：",
+    "  ① 汇总进事件层净权重 —— 只作「修正项」，|net| ≥ 0.5 时才在方向理由里显形，不单独决定方向；",
+    "  ② 喂给 A7「利空不跌见底 / 利多不涨见顶」的事件反应检验（|weight| ≥ 0.3 才参与），",
+    "     其票数进 synthesizeReversal，只影响 topBrake / bottomConfirm 这道刹车。",
+    "",
+    "维护提醒：本表只管**已经发生、没有接口能回补**的大事件与历史日程。",
+    "三类已改成每天自动抓（tools/events-daily.js → .data/events-auto.json，全免费无密钥）：",
+    "  · 减半   —— blockchain.info 当前块高推算，块高变一次日期就更新一次；",
+    "  · 美联储 —— 联储官网 FOMC 日历给未来日程，FRED DFEDTARU 给已发生的决议（降息 +0.6 / 加息 -0.8）；",
+    "  · 黑天鹅 —— 日线单日 ≤ -10% 或 14 天回撤 ≤ -25% 才记一条，**没有暴跌就是没有**。",
+    "自动表与本表合并时**手工永远优先**：同 kind 且日期差 ≤3 天的手工条目会让自动那条丢弃，",
+    "所以下面的 next-halving-2028 不会和块高算出的 2028-04-13 撞成两条日程。",
+    "本表其余条目（312/LUNA/FTX/SVB…）**没有 2025 年之后的记录**（不编造未知事件），",
+    "都已衰减 2 年以上，净权重只剩 0.08 量级 —— 这一路历史权重暂时是空的，",
+    "但历史账本要的是「当时发生了什么」，那只能录，不能推。",
+    "价格本身能算出来的东西（均线、结构、回撤）不放在这里，那些由 regime.js 直接算。"
+  ],
+  "kindVocabulary": {
+    "shock": "黑天鹅。**唯一会改变行为**的 kind：有效权重 ≤ -1 时方向层强制 NEUTRAL",
+    "halving": "减半。日程型，权重通常写 0，只用于相位提醒",
+    "liquidity": "货币政策与流动性（QE / 加息 / 降息 / DXY）→ 判据 liquidity-macro",
+    "etf": "ETF 通过、申赎净流入 → 判据 etf-netflow",
+    "sentiment": "媒体与大众情绪（一片悲观 / 一片乐观）→ 判据 media-extreme",
+    "onchain": "链上指标（活跃地址周环比等）→ 判据 onchain-activity",
+    "institution": "机构持仓 / 申报占比 → 判据 institutional-holding",
+    "regulatory": "监管动作（起诉、框架出台、禁令）→ 判据 regulation-policy",
+    "adoption": "采用 / 落地（如萨尔瓦多法币化）",
+    "other": "未归类"
+  },
+  "shockWindowDays": 30,
+  "shockCooldownDays": 7,
+  "events": [
+    {
+      "id": "covid-crash-2020",
+      "date": "2020-03-12",
+      "kind": "shock",
+      "weight": -2,
+      "halfLifeDays": 60,
+      "note": "新冠流动性危机（312）：全球风险资产被无差别抛售，BTC 单日腰斩。"
+    },
+    {
+      "id": "fed-qe-2020",
+      "date": "2020-03-15",
+      "kind": "liquidity",
+      "weight": 1,
+      "halfLifeDays": 365,
+      "note": "美联储宣布无限量 QE。全球流动性扩张是 2020-2021 那轮牛市的宏观底座。"
+    },
+    {
+      "id": "china-mining-ban-2021",
+      "date": "2021-05-19",
+      "kind": "shock",
+      "weight": -2,
+      "halfLifeDays": 60,
+      "note": "中国整治挖矿与交易，全网算力迁移，价格快速腰斩。"
+    },
+    {
+      "id": "sv-salvador-2021",
+      "date": "2021-09-07",
+      "kind": "adoption",
+      "weight": 0.2,
+      "halfLifeDays": 365,
+      "note": "萨尔瓦多将比特币列为法定货币。象征意义大于资金意义。"
+    },
+    {
+      "id": "fed-hike-start-2022",
+      "date": "2022-03-16",
+      "kind": "liquidity",
+      "weight": -0.8,
+      "halfLifeDays": 365,
+      "note": "美联储启动加息周期。流动性收缩是 2022 年熊市的直接原因。"
+    },
+    {
+      "id": "terra-luna-2022",
+      "date": "2022-05-09",
+      "kind": "shock",
+      "weight": -2,
+      "halfLifeDays": 60,
+      "note": "Terra/LUNA 崩盘，算法稳定币信用破产，触发连环清算。"
+    },
+    {
+      "id": "ftx-collapse-2022",
+      "date": "2022-11-08",
+      "kind": "shock",
+      "weight": -2,
+      "halfLifeDays": 60,
+      "note": "FTX 暴雷。这一条之后市场才真正见底 —— 黑天鹅往往出现在出清段的尾部。"
+    },
+    {
+      "id": "svb-usdc-2023",
+      "date": "2023-03-10",
+      "kind": "shock",
+      "weight": -2,
+      "halfLifeDays": 60,
+      "note": "硅谷银行倒闭、USDC 短暂脱锚。加密与传统银行的关联风险首次显性化。"
+    },
+    {
+      "id": "btc-etf-approved-2024",
+      "date": "2024-01-10",
+      "kind": "etf",
+      "weight": 1,
+      "halfLifeDays": 240,
+      "note": "美国现货比特币 ETF 获批。这是本周期最重要的结构性利好：给了传统资金一条合规通道。"
+    },
+    {
+      "id": "halving-4-2024",
+      "date": "2024-04-20",
+      "kind": "halving",
+      "weight": 0,
+      "halfLifeDays": 3650,
+      "note": "第四次减半（块高 840000）。权重记 0 —— 因为它已经由「减半时钟」这个确定性输入完整表达了，在这里再计一次就是重复计算。此处仅备案。"
+    },
+    {
+      "id": "yen-carry-unwind-2024",
+      "date": "2024-08-05",
+      "kind": "shock",
+      "weight": -2,
+      "halfLifeDays": 60,
+      "note": "日元套息交易平仓引发全球风险资产急跌，日经单日跌幅创纪录。"
+    },
+    {
+      "id": "fed-first-cut-2024",
+      "date": "2024-09-18",
+      "kind": "liquidity",
+      "weight": 0.6,
+      "halfLifeDays": 180,
+      "note": "美联储开启降息周期。流动性转向宽松，对风险资产是顺风。"
+    },
+    {
+      "id": "next-halving-2028",
+      "date": "2028-04-15",
+      "kind": "halving",
+      "weight": 0,
+      "halfLifeDays": 3650,
+      "note": "下次减半（预估，块高 1050000）。写未来日期 = 日程：不计入权重，只在界面上提示。"
+    }
+  ]
+}

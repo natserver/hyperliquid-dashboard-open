@@ -1,0 +1,22 @@
+# 构建上下文的排除清单 —— 比 Dockerfile 本身更重要的一半原因：
+# 这里放着两样绝不能进镜像的东西。
+#
+#  1. .alerts/config.json  —— Server 酱 SendKey / webhook token，等于密钥；
+#     镜像一旦被导出或推走，密钥就跟着走。它靠 bind mount 在运行时挂进去。
+#  2. .data/               —— 宏观历史账本。打进镜像 = 换一次镜像丢一次账。
+
+.git
+.alerts
+.data
+.cache
+.workbuddy
+report
+docs
+*.log
+*.bak
+*.bak.*
+*.cmd
+Dockerfile
+.dockerignore
+docker-compose.yml
+install.sh

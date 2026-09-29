@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>比特皇 · Hyperliquid 只读看板</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">⛓</span>
+    <div>
+      <h1>比特皇 · Hyperliquid 看板</h1>
+      <p class="brand-sub">只读 · 无密钥 · 数据来自公开接口</p>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="seg" id="network-seg" role="tablist" aria-label="网络">
+      <button class="seg-btn active" data-network="mainnet">主网</button>
+      <button class="seg-btn" data-network="testnet">测试网</button>
+    </div>
+
+    <label class="field field-wide">
+      <span>主账户地址</span>
+      <input id="address" type="text" spellcheck="false" placeholder="0x…（42 位，非 API Wallet 地址）" />
+    </label>
+
+    <label class="field">
+      <span>主图标的</span>
+      <input id="coin" type="text" spellcheck="false" value="BTC" style="width:88px" />
+    </label>
+
+    <label class="field">
+      <span>周期相位</span>
+      <select id="phase">
+        <option value="AUTO">自动（按减半时钟）</option>
+        <option value="ACCUMULATION">筑底 16%</option>
+        <option value="EXPANSION">扩张 25%</option>
+        <option value="BLOWOFF">冲顶 35%</option>
+        <option value="DECLINE">单边下跌 20%</option>
+      </select>
+    </label>
+
+    <label class="field field-check">
+      <input id="autorefresh" type="checkbox" checked />
+      <span>自动刷新</span>
+    </label>
+
+    <button id="refresh" class="btn btn-primary">刷新</button>
+    <span id="live-dot" class="live-dot" title="实时价格推送"></span>
+    <span id="alert-badge" class="alert-badge hidden" title="活动预警"></span>
+  </div>
+</header>
+
+<div id="banner" class="banner hidden"></div>
+<div id="toasts" class="toasts" aria-live="polite"></div>
+
+<main id="app">
+
+  <!-- 空状态：未填地址 -->
+  <section id="empty-state" class="empty-state">
+    <h2>填入你的 Hyperliquid 主账户地址</h2>
+    <p class="muted">
+      只需要一个 <code>0x</code> 开头的 42 位地址，<strong>不需要任何私钥或助记词</strong>。
+      Hyperliquid 的持仓、成交、权益数据本身就是公开可读的链上数据。
+    </p>
+    <ul class="hint-list">
+      <li>必须是<strong>主账户地址</strong> —— 填成 API Wallet（agent）地址会返回空结果，这是最常见的坑。</li>
+      <li>地址只保存在你本机浏览器里，不会发往任何第三方。</li>
+      <li>本站只调用只读接口，代码里没有任何下单或签名路径。</li>
+    </ul>
+  </section>
+
+  <div id="content" class="hidden">
+
+    <!-- ══════════ 执行提醒（不属于两大系统） ══════════
+         它的全部价值就在于你还没往下滚时就能看见，所以永远排在最前。 -->
+    <section class="card alert-card" id="alert-card">
+      <div class="card-head">
+        <h2>预警中心 <span class="alert-counts" id="alert-counts"></span></h2>
+        <div class="card-tools">
+          <label class="inline-check" title="授权后新告警会弹系统通知。严重级总是通知；警告级只在你切到别的标签页时通知，免得盯着盘还被弹窗骚扰。">
+            <input id="notify-perm" type="checkbox" /><span>浏览器通知</span>
+          </label>
+          <button id="alert-reset" class="btn btn-sm" title="把提醒计时归零：接下来一个冷却周期内不再重复提醒。它不会隐藏任何东西，角标与列表始终反映真实状态 —— 预警中心一旦开始粉饰，就等于没有预警。">重置提醒计时</button>
+          <span class="card-note" id="alert-push-status">推送状态检查中…</span>
+        </div>
+      </div>
+      <div id="alerts"></div>
+      <div class="alert-foot" id="alert-foot"></div>
+    </section>
+
+    <!-- ═══════════════════ 系统一 · 判断趋势 ═══════════════════
+         只回答一个问题：往哪个方向。用比特皇判断趋势的全部心得定方向，
+         给出结果，并逐条标出哪条心得符合、哪条不符合。 -->
+    <section class="system" id="system-1">
+      <div class="sys-head">
+        <span class="sys-no">系统一</span>
+        <div class="sys-titles">
+          <h2>判断趋势</h2>
+          <p>用比特皇判断趋势的心得定方向 —— 先给结果，再逐条告诉你哪条心得符合、哪条不符合，以及他为什么给这个趋势。</p>
+        </div>
+      </div>
+
+      <!-- 结果：全站唯一的「结论」。四行顺序刻意与比特皇的框架一致：① 方向 → ② 开单 → ③ 止损 → ④ 离场/加仓 -->
+      <section class="verdict t-flat" id="verdict"></section>
+
+      <!-- 比特皇为什么给这个趋势：一句话结论 + 完整理由链 + 六个关键读数 -->
+      <section class="card">
+        <div class="card-head">
+          <h2>比特皇为什么给这个趋势</h2>
+          <span class="card-note">理由链不截断、不摘要 —— 你能顺着它一路追到判据</span>
+        </div>
+        <div id="trend-why" class="pad"></div>
+      </section>
+
+      <!-- 心得逐条对照：哪条符合、哪条不符合 -->
+      <section class="card">
+        <div class="card-head">
+          <h2>心得逐条对照 <span class="card-note">系统一 · 判断趋势用到的每一条心得</span></h2>
+        </div>
+        <div id="trend-match" class="pad"></div>
+      </section>
+
+      <!-- 图是判断趋势的视觉证据，放在对照表之后：先看结论与依据，再看图 -->
+      <section class="card">
+        <div class="card-head">
+          <h2 id="chart-title">K 线 · 布林带 · 关键位</h2>
+          <div class="card-tools">
+            <div class="seg seg-sm" id="interval-seg">
+              <button class="seg-btn" data-interval="1h">1H</button>
+              <button class="seg-btn active" data-interval="4h">4H</button>
+              <button class="seg-btn" data-interval="1d">1D</button>
+            </div>
+            <label class="inline-check"><input id="show-bands" type="checkbox" checked /><span>布林带</span></label>
+            <label class="inline-check"><input id="show-levels" type="checkbox" checked /><span>关键位</span></label>
+          </div>
+        </div>
+        <div id="chart" class="chart"></div>
+        <div id="chart-legend" class="chart-legend"></div>
+      </section>
+
+      <!-- 宏观判据全表：系统一的推演明细，收起时摘要仍写在标题右侧 -->
+      <div class="folds">
+        <details class="fold" id="fold-macro">
+          <summary>
+            <span class="fold-title">系统一 · 推演明细（宏观判据全表与判定理由）</span>
+            <span class="fold-sub">逐条判据与它的出处</span>
+            <span class="fold-state" id="fold-macro-state"></span>
+          </summary>
+          <div class="fold-body">
+            <div id="macro" class="macro"></div>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- ═══════════════════ 系统二 · 开单与持仓 ═══════════════════
+         方向定了之后的全部动作：开单计划、止损、滚仓、止盈、离场，
+         每一项都按比特皇心得的方法，并写明他为什么这么做。 -->
+    <section class="system" id="system-2">
+      <div class="sys-head">
+        <span class="sys-no">系统二</span>
+        <div class="sys-titles">
+          <h2>开单与持仓</h2>
+          <p>开单之后的止盈、止损、滚仓、离场，完全按比特皇心得的方法执行 —— 每一项都附上他的原话，告诉你他为什么这么做。</p>
+        </div>
+      </div>
+
+      <!-- 账户四个最常用的数（其余四个统计数收进「账户明细」） -->
+      <section class="kpis kpis-primary" id="kpis"></section>
+
+      <!-- 持仓风控：没有持仓时整卡隐藏（不是显示一张空表） -->
+      <section class="card" id="position-card">
+        <div class="card-head">
+          <h2>持仓风控</h2>
+          <span class="card-note" id="positions-note"></span>
+        </div>
+        <div id="positions"></div>
+      </section>
+
+      <!-- 开单计划 · 止损 / 滚仓 / 止盈 —— 默认展开，它是系统二的主体 -->
+      <details class="fold" id="fold-strategy" open>
+        <summary>
+          <span class="fold-title">开单计划 · 止损 / 滚仓 / 止盈</span>
+          <span class="fold-sub">每一个候选位与它的推导</span>
+          <span class="fold-state" id="fold-strategy-state"></span>
+        </summary>
+        <div class="fold-body">
+          <div class="fold-tools">
+            <span class="fold-tools-label">看这个标的</span>
+            <select id="level-coin"></select>
+          </div>
+          <div id="strategy" class="strategy"></div>
+        </div>
+      </details>
+
+      <!-- 离场四通道：每条通道都附比特皇原话 -->
+      <section class="card">
+        <div class="card-head">
+          <h2>离场四通道 <span class="card-note">每一条都写着比特皇为什么这么做</span></h2>
+        </div>
+        <div id="exit-board" class="pad"></div>
+      </section>
+
+      <!-- 系统二的心得对照 -->
+      <section class="card">
+        <div class="card-head">
+          <h2>心得逐条对照 <span class="card-note">系统二 · 开单 / 止损 / 滚仓 / 止盈</span></h2>
+        </div>
+        <div id="trade-match" class="pad"></div>
+      </section>
+    </section>
+
+    <!-- ══════════ 以下为附录：完整推演与账户明细，默认全部收起 ══════════
+         用原生 <details> 而不是 JS 折叠：折叠状态因此天然跨刷新保持
+         （自动刷新会反复重写 innerHTML，JS 折叠会被反复弹回原位）。 -->
+    <div class="folds">
+
+      <details class="fold" id="fold-pipeline">
+        <summary>
+          <span class="fold-title">附录 · 三段完整推演（定方向 → 定时点 → 管持仓）</span>
+          <span class="fold-sub">现在卡在哪一段、为什么</span>
+          <span class="fold-state" id="fold-pipeline-state"></span>
+        </summary>
+        <div class="fold-body">
+          <div id="pipeline" class="pipeline"></div>
+        </div>
+      </details>
+
+      <details class="fold" id="fold-account">
+        <summary>
+          <span class="fold-title">附录 · 账户明细</span>
+          <span class="fold-sub">权益曲线 / 绩效 / 成交 / 挂单 / 资金费 / 转入转出 / 按标的 / 规则告警</span>
+          <span class="fold-state" id="fold-account-state"></span>
+        </summary>
+        <div class="fold-body">
+          <section class="kpis kpis-more" id="kpis-more"></section>
+
+          <div class="layout">
+            <div class="col-main">
+              <section class="card">
+                <div class="card-head">
+                  <h2>权益曲线与回撤</h2>
+                  <div class="card-tools">
+                    <div class="seg seg-sm" id="period-seg">
+                      <button class="seg-btn" data-period="perpDay">日</button>
+                      <button class="seg-btn" data-period="perpWeek">周</button>
+                      <button class="seg-btn" data-period="perpMonth">月</button>
+                      <button class="seg-btn active" data-period="perpAllTime">全部</button>
+                    </div>
+                  </div>
+                </div>
+                <div id="equity" class="chart chart-sm"></div>
+                <div id="equity-legend" class="chart-legend"></div>
+              </section>
+
+              <section class="card" id="warnings-card">
+                <div class="card-head"><h2>规则告警</h2></div>
+                <div id="warnings"></div>
+              </section>
+
+              <section class="card">
+                <div class="card-head">
+                  <h2>成交明细</h2>
+                  <span class="card-note" id="fills-note"></span>
+                </div>
+                <div id="fills"></div>
+              </section>
+            </div>
+
+            <div class="col-side">
+              <section class="card">
+                <div class="card-head"><h2>绩效</h2></div>
+                <div id="performance"></div>
+              </section>
+
+              <section class="card">
+                <div class="card-head"><h2>按标的盈亏</h2></div>
+                <div id="bycoin"></div>
+              </section>
+
+              <section class="card">
+                <div class="card-head"><h2>挂单</h2><span class="card-note" id="orders-note"></span></div>
+                <div id="orders"></div>
+              </section>
+
+              <section class="card">
+                <div class="card-head"><h2>资金费流水</h2></div>
+                <div id="funding"></div>
+              </section>
+
+              <section class="card">
+                <div class="card-head"><h2>转入转出</h2></div>
+                <div id="deposits"></div>
+              </section>
+            </div>
+          </div>
+        </div>
+      </details>
+
+    </div>
+
+    <footer class="foot">
+      <span id="foot-status"></span>
+      <span class="muted" id="foot-timing"></span>
+    </footer>
+  </div>
+</main>
+
+<script type="module" src="/app.js"></script>
+</body>
+</html>

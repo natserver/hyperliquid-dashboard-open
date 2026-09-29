@@ -1,0 +1,28 @@
+# 预警配置里含 webhook token，等于密钥 —— 绝不入库
+.alerts/config.json
+.alerts/state-*.json
+.alerts/state-*.json.tmp
+.alerts/history-*.jsonl
+.alerts/heartbeat-*.json
+
+# 数据缓存与归因产物
+.cache/
+report/*.json
+report/*.html
+
+# 宏观读数的历史库（账本，不是缓存）
+# 丢了就永远补不回来 —— 今天的恐慌贪婪指数明天不会再有今天的值。
+# 但它是本地二进制，不该入库。
+.data/
+
+# 备份文件：一律不入库（回滚靠 git，不靠 .bak）
+*.bak
+*.bak.*
+
+# 运行日志与截图产物
+*.log
+tools/chart-shot-out/
+tools/macro-shot-out/
+
+# 本地代理工具的记忆与临时目录
+.workbuddy/
